@@ -16,5 +16,5 @@ jobs:
         with:
           fromMailAddress: 'nikola+sendgrid@knezevic.ch'
           toMailAddress: 'github@nikola.knezevic.ch'
-          subject: 'A new issue was labeled/created in niv-updater-action'
+          subject: 'A new issue was labeled/created in npins-updater-action'
           labelsToMonitor: '@project/notify-owners'

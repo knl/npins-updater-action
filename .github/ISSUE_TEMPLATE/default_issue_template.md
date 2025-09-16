@@ -8,5 +8,5 @@ assignees: knl
 ---
 
 <!--
-  Thank you for using niv-updater-action! Please let us know which version is causing you troubles.
+  Thank you for using npins-updater-action! Please let us know which version is causing you troubles.
 -->
