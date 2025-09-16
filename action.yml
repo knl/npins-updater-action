@@ -1,0 +1,76 @@
+name: 'npins Updater Action'
+description: 'A GitHub action that detects updates to dependencies tracked by npins and creates pull requests to keep them up to date.'
+author: 'knl'
+runs:
+  using: 'node20'
+  main: 'main.js'
+inputs:
+  pull_request_base:
+    description: 'The name of the branch to issue the pull requests against. Defaults to an empty string, which means to take the default branch for the repository.'
+    required: false
+    default: ''
+  npins_directory:
+    description: 'The path in the repo to the sources.json file. This value will be passed to npins via `--directory` option. Defaults to `npins/`.'
+    required: false
+    default: 'npins'
+  npins_version:
+    description: 'The npins version to be used. Defaults to `master`, meaning npins-updater-action will take the latest npins for each run. You may want to fix a particular version and avoid future breaks to your workflow.'
+    required: false
+    default: 'master'
+  keep_updating:
+    description: 'If PR already exists, keep it updated with new changes. The branch will be force updated, as this process keeps a single commit on a branch. Defaults to false to maintain the old behaviour.'
+    required: false
+    default: false
+  branch_prefix:
+    description: 'The prefix used for update branches, created by this action. The action does not sanitize the branch name. For a description of what a valid branch name is, please consult: https://mirrors.edge.kernel.org/pub/software/scm/git/docs/git-check-ref-format.html. Defaults to "update/".'
+    required: false
+    default: 'update/'
+  skip_versioned_revisions:
+    description: 'If `true`, will cause the action to skip updating any dependency that has a version in their revision. This is due to the way npins currently works, where it will always update to the latest HEAD of a branch. Thus, if one have a dependency where, for example, `rev=v1.0.0`, npins would normally update it to the latest head of the branch, making `rev` holding the appropriate SHA. This is something one would not normally expect. Thus, this option exists until npins fixes the behaviour. Defaults to `true`.'
+    required: false
+    default: true
+  skip_ssh_repos:
+    description: 'If `true`, will cause the action to skip updating any dependency that is hosted by a repo accessible via ssh. Defaults to `false`.'
+    required: false
+    default: false
+  whitelist:
+    description: 'A list of dependencies, comma separated, that will be checked for updates. Other dependencies tracked by npins will not be checked for updates. This list will be consulted before the blacklist. It defaults to the list of all dependencies tracked by npins.'
+    required: false
+    default: ''
+  blacklist:
+    description: 'A list of dependencies, comma separated, to skip from updating. This list will be consulted after evaluating the whitelist.'
+    required: false
+    default: ''
+  labels:
+    description: 'A list of labels, *newline* separated, that will be applied to the generated PR. Defaults to an empty list.'
+    required: false
+    default: ''
+  show_merges:
+    description: 'If `true`, the changelog will contain merge commits listed. Otherwise, they will be skipped (however, the commits from the PRs/branches will shown). Defaults to `false`.'
+    required: false
+    default: false
+  message_prefix:
+    description: 'The text that will be put in front of the generated changelog. Defaults to empty.'
+    required: false
+    default: ''
+  message_suffix:
+    description: 'The text that will be put in after the generated changelog. Defaults to empty.'
+    required: false
+    default: ''
+  title_prefix:
+    description: 'The text that will be put in front of the generated commit title. Defaults to empty.'
+    required: false
+    default: ''
+  github_changelog_no_backreferences:
+    description: 'If `true`, the changelog will transform all issue links to links via a redirector, to prevent GitHub from backreferencing the created PR in these issues. Defaults to `true`.'
+    required: false
+    default: true
+  debug_output:
+    description: If `true`, `set -x` will be turned on for the updater script, outputing every step the action takes. This will show up in the action log, and could be useful for trying to reproduce issues locally. Defaults to `false`.
+    required: false
+    default: false
+
+branding:
+  # maybe 'refresh-cw'
+  icon: 'git-pull-request'
+  color: 'orange'
