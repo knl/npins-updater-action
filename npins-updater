@@ -123,18 +123,16 @@ setupPrerequisites() {
 
 # Setup netrc file to be used by nix-prefetch-url
 setupNetrc() {
-	if [[ $INPUT_SKIP_SSH_REPOS == 'false' ]]; then
-		netrc=$(mktemp)
-		sudo chmod 0600 "$netrc"
-		sudo sh -c "echo 'netrc-file = $netrc' >> /etc/nix/nix.conf"
-		cat <<EOF >>"$netrc"
+	netrc=$(mktemp)
+	sudo chmod 0600 "$netrc"
+	sudo sh -c "echo 'netrc-file = $netrc' >> /etc/nix/nix.conf"
+	cat <<EOF >>"$netrc"
 machine github.com
 login api
 password $GITHUB_TOKEN
 EOF
-		# shellcheck disable=SC2064
-		trap "rm -f '$netrc'" EXIT
-	fi
+	# shellcheck disable=SC2064
+	trap "rm -f '$netrc'" EXIT
 }
 
 # This function will modify all INPUT_* variables so that they don't contain any garbage
