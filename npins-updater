@@ -72,7 +72,7 @@ setupPrerequisites() {
 		# There is --retry-on-errors, but only newer curl versions support that
 		curl_retries=5
 		# pin to ensure future upgrades do not interfere with the subsequent steps
-		while ! curl -sS -o "$workdir/install" -v --fail -L "https://releases.nixos.org/nix/nix-2.24.9/install"; do
+		while ! curl -sS -o "$workdir/install" -v --fail -L "https://releases.nixos.org/nix/nix-2.29.0/install"; do
 			sleep 1
 			((curl_retries--))
 			if [[ $curl_retries -le 0 ]]; then
