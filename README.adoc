@@ -113,7 +113,7 @@ jobs:
     steps:
       # notice there is no checkout step
       - name: npins-updater-action
-        uses: knl/npins-updater-action@v15
+        uses: knl/npins-updater-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -164,9 +164,6 @@ npins, the default configuration will not work. Thus, to use npins from availabl
 nixpkgs, set `npins_version` to `pass:[*from-nixpkgs*]`. It will install `npins`
 using `nixpkgs` with nix-shell instead of nix-env.
 
-To avoid using `sudo` (also unavailable on self-hosted runners), the input
-`pass:[skip_ssh_repos]` should be set to `true`.
-
 Example:
 
 [source,yaml]
@@ -184,7 +181,7 @@ jobs:
     steps:
       # notice there is no checkout step
       - name: npins-updater-action
-        uses: knl/npins-updater-action@v15
+        uses: knl/npins-updater-action@v1
         with:
           npins_version: '*from-nixpkgs*'
           skip_ssh_repos: true
