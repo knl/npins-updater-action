@@ -34,7 +34,7 @@ jobs:
     steps:
       # notice there is no checkout step
       - name: npins-updater-action
-        uses: knl/npins-updater-action@v1
+        uses: knl/npins-updater-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ----
@@ -52,10 +52,11 @@ jobs:
 * `sources_file`: (Optional) The path in the repo to the `sources.json` file.
   This value will be passed to npins via `--sources-file` option. Defaults to
   `nix/sources.json`.
-* `npins_version`: (Optional) The npins version to be used. Defaults to `master`,
-  meaning `npins-updater-action` will take the latest npins for each run. You may want
-  to fix a particular version and avoid future breaks to your workflow. If you're
-  using a self-hosted runner, set this to `*from-nixpkgs*`.
+* `npins_version`: (Optional) The npins version to be used. Defaults to
+  `*from-nixpkgs*`, meaning that it uses the version from nixpkgs the action is
+  configured to use. You could instead use something like `master`, to denote
+  the master branch of npins. You may want to fix a particular version and
+  avoid future breaks to your workflow
 * `branch_prefix`: (Optional) The prefix used for update branches, created by
   this action. The action does not sanitize the branch name. For a description
   of what a valid branch name is, please consult:
@@ -113,7 +114,7 @@ jobs:
     steps:
       # notice there is no checkout step
       - name: npins-updater-action
-        uses: knl/npins-updater-action@v1
+        uses: knl/npins-updater-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -181,7 +182,7 @@ jobs:
     steps:
       # notice there is no checkout step
       - name: npins-updater-action
-        uses: knl/npins-updater-action@v1
+        uses: knl/npins-updater-action@v2
         with:
           npins_version: '*from-nixpkgs*'
           skip_ssh_repos: true
