@@ -5,7 +5,11 @@
   # env.GREET = "devenv";
 
   # https://devenv.sh/packages/
-  packages = [ pkgs.asciidoctor ];
+  packages = with pkgs; [
+    act
+    bats
+    asciidoctor
+  ];
 
   # enterShell = ''
   # '';
@@ -17,9 +21,9 @@
   # scripts.hello.exec = "echo hello from $GREET";
 
   # https://devenv.sh/pre-commit-hooks/
-  pre-commit.hooks.shellcheck.enable = true;
-  pre-commit.hooks.actionlint.enable = true;
-  pre-commit.hooks.shfmt.enable = true;
+  git-hooks.hooks.shellcheck.enable = true;
+  git-hooks.hooks.actionlint.enable = true;
+  git-hooks.hooks.shfmt.enable = true;
   # pre-commit.hooks.typos.enable = true;
 
   # https://devenv.sh/processes/
