@@ -14,9 +14,9 @@ inputs:
     required: false
     default: 'npins'
   npins_version:
-    description: 'The npins version to be used. Defaults to `master`, meaning npins-updater-action will take the latest npins for each run. You may want to fix a particular version and avoid future breaks to your workflow.'
+    description: 'The npins version to be used. Defaults to `*from-nixpkgs*`, meaning that it uses the version from nixpkgs the action is configured to use. You could instead use something like `master`, to denote the master branch of npins. You may want to fix a particular version and avoid future breaks to your workflow.'
     required: false
-    default: 'master'
+    default: '*from-nixpkgs*'
   keep_updating:
     description: 'If PR already exists, keep it updated with new changes. The branch will be force updated, as this process keeps a single commit on a branch. Defaults to false to maintain the old behaviour.'
     required: false
