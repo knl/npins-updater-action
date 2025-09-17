@@ -279,6 +279,14 @@ createPullRequestsOnUpdate() {
 			continue
 		fi
 
+		# check type, as only Git is supported
+		dep_type="$(jq -jr --arg dep "$dep" '.pins[$dep].type' <<<"$content")"
+
+		if [[ $dep_type != "Git" ]]; then
+			warn "Unsupported type '$dep_type' for dependency $dep, skipping"
+			continue
+		fi
+
 		revision="$(jq -jr --arg dep "$dep" '.pins[$dep].revision' <<<"$content")"
 
 		# check if the branch exists first.
@@ -296,12 +304,6 @@ createPullRequestsOnUpdate() {
 		fi
 
 		echo "Will use branch '$branch_name' for the possible update"
-
-		# since this is an action, we don't have SSH keys available
-		# but we do have tokens that are useful
-		# check if the dependency is to github
-		dep_owner="$(jq -jr --arg dep "$dep" '.pins[$dep].owner // empty' <<<"$content")"
-		dep_repo="$(jq -jr --arg dep "$dep" '.pins[$dep].repo // empty' <<<"$content")"
 
 		# check if there is an update by running npins
 		wdir=$(mktemp -d)
@@ -334,6 +336,9 @@ createPullRequestsOnUpdate() {
 			echo "The new version ($new_revision) is the same as old ($revision) for $dep, skipping"
 			continue
 		fi
+
+		dep_owner="$(jq -jr --arg dep "$dep" '.pins[$dep].repository.owner // empty' <<<"$content")"
+		dep_repo="$(jq -jr --arg dep "$dep" '.pins[$dep].repository.repo // empty' <<<"$content")"
 
 		# generate the message
 		title=$(mktemp)
