@@ -20,28 +20,12 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v5
-      - name: Install dependencies
-        run: |
-          # Get Nix
-          sudo mkdir -p /etc/nix
-          # Workaround segfault: https://github.com/NixOS/nix/issues/2733
-          sudo sh -c 'echo "http2 = false" >> /etc/nix/nix.conf'
-          sh <(curl -sSL https://nixos.org/nix/install) --no-daemon
-
-          {
-              echo "/nix/var/nix/profiles/per-user/runner/profile/bin"
-              echo "/nix/var/nix/profiles/default/bin"
-              echo "${HOME}/.nix-profile/bin"
-          } >> "$GITHUB_PATH"
-
-          source "${HOME}/.nix-profile/etc/profile.d/nix.sh"
-          # Install dependencies
-          nix-env -iA nixpkgs.shfmt nixpkgs.shellcheck
-      - name: Run shfmt
-        run: |
-          shfmt -d -i 4 -ci -bn -s npins-updater
-      - name: Run shellcheck
-        run: |
-          shellcheck -s bash npins-updater
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v26
+      - uses: cachix/cachix-action@v14
+        with:
+          name: devenv
+      - name: Install devenv.sh
+        run: nix profile install nixpkgs#devenv
+      - name: Build the devenv shell and run any git hooks
+        run: devenv test

@@ -4,183 +4,183 @@
 set -euo pipefail
 
 error() {
-	echo "::error::$*"
-	exit 1
+    echo "::error::$*"
+    exit 1
 }
 
 warn() {
-	echo "::warning::$*"
+    echo "::warning::$*"
 }
 
 # Check if GITHUB_TOKEN is correct (maybe due to misconfiguration, we might get an expired one)
 checkCredentials() {
-	if ! curl --fail -s -H "Authorization: token $GITHUB_TOKEN" 'https://api.github.com/'; then
-		error 'GITHUB_TOKEN is incorrect, aborting'
-	fi
+    if ! curl --fail -s -H "Authorization: token $GITHUB_TOKEN" 'https://api.github.com/'; then
+        error 'GITHUB_TOKEN is incorrect, aborting'
+    fi
 }
 
 # Install all the dependencies we need, using Nix
 setupPrerequisites() {
-	echo 'Installing Nix'
+    echo 'Installing Nix'
 
-	# Check if some other step already installed Nix
-	if [[ ! -d /nix/store ]] || ! nix --version >/dev/null 2>&1; then
-		# Create a temporary workdir
-		workdir=$(mktemp -d)
-		trap 'rm -rf "$workdir"' EXIT
+    # Check if some other step already installed Nix
+    if [[ ! -d /nix/store ]] || ! nix --version >/dev/null 2>&1; then
+        # Create a temporary workdir
+        workdir=$(mktemp -d)
+        trap 'rm -rf "$workdir"' EXIT
 
-		# Configure Nix
-		add_config() {
-			echo "$1" >>"$workdir/nix.conf"
-		}
+        # Configure Nix
+        add_config() {
+            echo "$1" >>"$workdir/nix.conf"
+        }
 
-		# Workaround segfault: https://github.com/NixOS/nix/issues/2733
-		add_config "http2 = false"
+        # Workaround segfault: https://github.com/NixOS/nix/issues/2733
+        add_config "http2 = false"
 
-		add_config "max-jobs = auto"
-		if [[ $OSTYPE =~ darwin ]]; then
-			add_config "ssl-cert-file = /etc/ssl/cert.pem"
-		fi
-		# Allow binary caches for user
-		add_config "trusted-users = root ${USER:-}"
-		add_config "experimental-features = nix-command flakes"
-		# Add a GitHub access token.
-		# Token-less access is subject to lower rate limits.
-		# Use the default GitHub token if available.
-		# Skip this step if running an Enterprise instance. The default token there does not work for github.com.
-		if [[ -n ${GITHUB_TOKEN:-} && $GITHUB_SERVER_URL == "https://github.com" ]]; then
-			echo "::debug::Using the default GITHUB_TOKEN for github.com"
-			add_config "access-tokens = github.com=$GITHUB_TOKEN"
-		else
-			echo "::debug::Continuing without a GitHub access token"
-		fi
-		# Nix installer flags
-		installer_options=(
-			--no-channel-add
-			--darwin-use-unencrypted-nix-store-volume
-			--nix-extra-conf-file "$workdir/nix.conf"
-			--no-daemon
-		)
+        add_config "max-jobs = auto"
+        if [[ $OSTYPE =~ darwin ]]; then
+            add_config "ssl-cert-file = /etc/ssl/cert.pem"
+        fi
+        # Allow binary caches for user
+        add_config "trusted-users = root ${USER:-}"
+        add_config "experimental-features = nix-command flakes"
+        # Add a GitHub access token.
+        # Token-less access is subject to lower rate limits.
+        # Use the default GitHub token if available.
+        # Skip this step if running an Enterprise instance. The default token there does not work for github.com.
+        if [[ -n ${GITHUB_TOKEN:-} && $GITHUB_SERVER_URL == "https://github.com" ]]; then
+            echo "::debug::Using the default GITHUB_TOKEN for github.com"
+            add_config "access-tokens = github.com=$GITHUB_TOKEN"
+        else
+            echo "::debug::Continuing without a GitHub access token"
+        fi
+        # Nix installer flags
+        installer_options=(
+            --no-channel-add
+            --darwin-use-unencrypted-nix-store-volume
+            --nix-extra-conf-file "$workdir/nix.conf"
+            --no-daemon
+        )
 
-		# "fix" the following error when running nix*
-		# error: the group 'nixbld' specified in 'build-users-group' does not exist
-		add_config "build-users-group ="
-		sudo mkdir -p /etc/nix
-		sudo chmod 0755 /etc/nix
-		sudo cp "$workdir/nix.conf" /etc/nix/nix.conf
+        # "fix" the following error when running nix*
+        # error: the group 'nixbld' specified in 'build-users-group' does not exist
+        add_config "build-users-group ="
+        sudo mkdir -p /etc/nix
+        sudo chmod 0755 /etc/nix
+        sudo cp "$workdir/nix.conf" /etc/nix/nix.conf
 
-		# There is --retry-on-errors, but only newer curl versions support that
-		curl_retries=5
-		# pin to ensure future upgrades do not interfere with the subsequent steps
-		while ! curl -sS -o "$workdir/install" -v --fail -L "https://releases.nixos.org/nix/nix-2.29.0/install"; do
-			sleep 1
-			((curl_retries--))
-			if [[ $curl_retries -le 0 ]]; then
-				echo "curl retries failed" >&2
-				exit 1
-			fi
-		done
+        # There is --retry-on-errors, but only newer curl versions support that
+        curl_retries=5
+        # pin to ensure future upgrades do not interfere with the subsequent steps
+        while ! curl -sS -o "$workdir/install" -v --fail -L "https://releases.nixos.org/nix/nix-2.29.0/install"; do
+            sleep 1
+            ((curl_retries--))
+            if [[ $curl_retries -le 0 ]]; then
+                echo "curl retries failed" >&2
+                exit 1
+            fi
+        done
 
-		sh "$workdir/install" "${installer_options[@]}"
+        sh "$workdir/install" "${installer_options[@]}"
 
-		# Set paths
-		echo "/nix/var/nix/profiles/default/bin" >>"$GITHUB_PATH"
-		# new path for nix 2.14
-		echo "$HOME/.nix-profile/bin" >>"$GITHUB_PATH"
-	fi
+        # Set paths
+        echo "/nix/var/nix/profiles/default/bin" >>"$GITHUB_PATH"
+        # new path for nix 2.14
+        echo "$HOME/.nix-profile/bin" >>"$GITHUB_PATH"
+    fi
 
-	echo 'Installing Nix - done'
-	echo 'Installing dependencies'
+    echo 'Installing Nix - done'
+    echo 'Installing dependencies'
 
-	export PATH="${PATH}:/nix/var/nix/profiles/per-user/runner/profile/bin:/nix/var/nix/profiles/default/bin"
+    export PATH="${PATH}:/nix/var/nix/profiles/per-user/runner/profile/bin:/nix/var/nix/profiles/default/bin"
 
-	# shellcheck disable=SC1091
-	test -f "${HOME}/.nix-profile/etc/profile.d/nix.sh" && source "${HOME}/.nix-profile/etc/profile.d/nix.sh"
+    # shellcheck disable=SC1091
+    test -f "${HOME}/.nix-profile/etc/profile.d/nix.sh" && source "${HOME}/.nix-profile/etc/profile.d/nix.sh"
 
-	PACKAGES=(jq moreutils curl)
-	if [[ $INPUT_NPINS_VERSION == "*from-nixpkgs*" ]]; then
-		PACKAGES+=(npins)
-	else
-		# we also need hub, and git, but they both come with ubuntu-latest with GitHub Actions
-		# https://github.com/actions/virtual-environments/blob/master/images/linux/Ubuntu1804-README.md
-		# NOTE: We add 'cache.nixos.org' as a substituter because npins uses it as an upstream cache:
-		# https://blog.cachix.org/posts/2020-07-28-upstream-caches-avoiding-pushing-paths-in-cache-nixos-org/
-		nix-env -i -f "https://github.com/andir/npins/tarball/$INPUT_NPINS_VERSION" \
-			--substituters 'https://cache.nixos.org' \
-			--trusted-public-keys 'cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY='
-	fi
-	# We need --rawfile for jq, available in jq 1.6, which is only available on ubuntu 20.04 and macos
-	# We need moreutils because of the sponge utility (to simplify the code)
+    PACKAGES=(jq moreutils curl)
+    if [[ $INPUT_NPINS_VERSION == "*from-nixpkgs*" ]]; then
+        PACKAGES+=(npins)
+    else
+        # we also need hub, and git, but they both come with ubuntu-latest with GitHub Actions
+        # https://github.com/actions/virtual-environments/blob/master/images/linux/Ubuntu1804-README.md
+        # NOTE: We add 'cache.nixos.org' as a substituter because npins uses it as an upstream cache:
+        # https://blog.cachix.org/posts/2020-07-28-upstream-caches-avoiding-pushing-paths-in-cache-nixos-org/
+        nix-env -i -f "https://github.com/andir/npins/tarball/$INPUT_NPINS_VERSION" \
+            --substituters 'https://cache.nixos.org' \
+            --trusted-public-keys 'cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY='
+    fi
+    # We need --rawfile for jq, available in jq 1.6, which is only available on ubuntu 20.04 and macos
+    # We need moreutils because of the sponge utility (to simplify the code)
 
-	# Install if hub dependency is missing on self hosted runner
-	[[ $(type -P "hub") ]] || PACKAGES+=(hub)
+    # Install if hub dependency is missing on self hosted runner
+    [[ $(type -P "hub") ]] || PACKAGES+=(hub)
 
-	# shellcheck disable=SC2016
-	PATH="${PATH}:$(nix-shell -I "nixpkgs=https://github.com/NixOS/nixpkgs/archive/refs/heads/nixos-25.05.tar.gz" -p "${PACKAGES[@]}" --command 'echo $PATH')"
+    # shellcheck disable=SC2016
+    PATH="${PATH}:$(nix-shell -I "nixpkgs=https://github.com/NixOS/nixpkgs/archive/refs/heads/nixos-25.05.tar.gz" -p "${PACKAGES[@]}" --command 'echo $PATH')"
 
-	echo 'Installing dependencies - done'
+    echo 'Installing dependencies - done'
 }
 
 # Setup netrc file to be used by nix-prefetch-url
 setupNetrc() {
-	netrc=$(mktemp)
-	sudo chmod 0600 "$netrc"
-	sudo sh -c "echo 'netrc-file = $netrc' >> /etc/nix/nix.conf"
-	cat <<EOF >>"$netrc"
+    netrc=$(mktemp)
+    sudo chmod 0600 "$netrc"
+    sudo sh -c "echo 'netrc-file = $netrc' >> /etc/nix/nix.conf"
+    cat <<EOF >>"$netrc"
 machine github.com
 login api
 password $GITHUB_TOKEN
 EOF
-	# shellcheck disable=SC2064
-	trap "rm -f '$netrc'" EXIT
+    # shellcheck disable=SC2064
+    trap "rm -f '$netrc'" EXIT
 }
 
 # This function will modify all INPUT_* variables so that they don't contain any garbage
 sanitizeInputs() {
-	# remove all whitespace
-	INPUT_WHITELIST="${INPUT_WHITELIST// /}"
-	# remove all redundant commas, as well as those at the beginning and end
-	shopt -s extglob
-	INPUT_WHITELIST="${INPUT_WHITELIST//+(,)/,}"
-	INPUT_WHITELIST="${INPUT_WHITELIST//^+(,)/}"
-	INPUT_WHITELIST="${INPUT_WHITELIST//+(,)$/}"
-	shopt -u extglob
+    # remove all whitespace
+    INPUT_WHITELIST="${INPUT_WHITELIST// /}"
+    # remove all redundant commas, as well as those at the beginning and end
+    shopt -s extglob
+    INPUT_WHITELIST="${INPUT_WHITELIST//+(,)/,}"
+    INPUT_WHITELIST="${INPUT_WHITELIST//^+(,)/}"
+    INPUT_WHITELIST="${INPUT_WHITELIST//+(,)$/}"
+    shopt -u extglob
 
-	# prepare the blacklist
-	# only need to remove spaces, commas are irrelevant
-	INPUT_BLACKLIST="${INPUT_BLACKLIST// /}"
+    # prepare the blacklist
+    # only need to remove spaces, commas are irrelevant
+    INPUT_BLACKLIST="${INPUT_BLACKLIST// /}"
 
-	# remove all empty lines from the labels
-	# do not remove whitespace at the beginning and the end of the line, it might be legal
-	shopt -s extglob
-	INPUT_LABELS="${INPUT_LABELS##+(*([[:space:]])$'\n')}"
-	INPUT_LABELS="${INPUT_LABELS%%+(*([[:space:]])$'\n')}"
-	INPUT_LABELS="${INPUT_LABELS//+(*([[:space:]])$'\n')*([[:space:]])$'\n'/$'\n'}"
-	shopt -s extglob
+    # remove all empty lines from the labels
+    # do not remove whitespace at the beginning and the end of the line, it might be legal
+    shopt -s extglob
+    INPUT_LABELS="${INPUT_LABELS##+(*([[:space:]])$'\n')}"
+    INPUT_LABELS="${INPUT_LABELS%%+(*([[:space:]])$'\n')}"
+    INPUT_LABELS="${INPUT_LABELS//+(*([[:space:]])$'\n')*([[:space:]])$'\n'/$'\n'}"
+    shopt -s extglob
 }
 
 applyLabels() {
-	if [[ -z $INPUT_LABELS ]]; then
-		echo 'No labels to add'
-		return
-	fi
+    if [[ -z $INPUT_LABELS ]]; then
+        echo 'No labels to add'
+        return
+    fi
 
-	echo 'Adding labels to the PR'
+    echo 'Adding labels to the PR'
 
-	local pr_data
-	pr_data="$1"
+    local pr_data
+    pr_data="$1"
 
-	pr_number="$(jq -jr '.number // empty' <"$pr_data")"
-	if [[ -z $pr_number ]]; then
-		echo '::warning::could not get the PR number from the json payload, skipping adding labels'
-		return
-	fi
+    pr_number="$(jq -jr '.number // empty' <"$pr_data")"
+    if [[ -z $pr_number ]]; then
+        echo '::warning::could not get the PR number from the json payload, skipping adding labels'
+        return
+    fi
 
-	if ! jq -n --arg labs "$INPUT_LABELS" '{labels: $labs | split("\n") }' |
-		hub api -XPOST --input - \
-			"/repos/$GITHUB_REPOSITORY/issues/$pr_number/labels" >/dev/null; then
-		echo "::warning::could not assign labels to the PR $pr_number"
-	fi
+    if ! jq -n --arg labs "$INPUT_LABELS" '{labels: $labs | split("\n") }' \
+        | hub api -XPOST --input - \
+            "/repos/$GITHUB_REPOSITORY/issues/$pr_number/labels" >/dev/null; then
+        echo "::warning::could not assign labels to the PR $pr_number"
+    fi
 }
 
 # This function will turn any #123 into owner/repo#123.
@@ -189,9 +189,9 @@ applyLabels() {
 # nix/sources.json), not one where the changelog originated from. The owner/repo#123 format will
 # ensure proper linking.
 formatIssueLinksPlain() {
-	dep_owner="$1"
-	dep_repo="$2"
-	sed "s~\(#[0-9]\+\)~$dep_owner/$dep_repo\1~g"
+    dep_owner="$1"
+    dep_repo="$2"
+    sed "s~\(#[0-9]\+\)~$dep_owner/$dep_repo\1~g"
 }
 
 # Like formatIssuesLinkPlain, this function turns any #123 a direct reference to the original repository.
@@ -199,12 +199,12 @@ formatIssueLinksPlain() {
 # do not contain back references.
 # For more details, see https://github.com/knl/npins-updater-action/issues/26
 formatIssueLinksNoBackreferences() {
-	dep_owner="$1"
-	dep_repo="$2"
-	# The sequence e2 81 a0 is \u2060 - UNICODE WORD JOINER
-	# We need it in order prevent GitHub from making a backreference due to
-	# the commit message text.
-	sed "s~#\([0-9]\+\)~[$dep_owner/$dep_repo\xe2\x81\xa0#\1](https://togithub.com/$dep_owner/$dep_repo/issues/\1)~g"
+    dep_owner="$1"
+    dep_repo="$2"
+    # The sequence e2 81 a0 is \u2060 - UNICODE WORD JOINER
+    # We need it in order prevent GitHub from making a backreference due to
+    # the commit message text.
+    sed "s~#\([0-9]\+\)~[$dep_owner/$dep_repo\xe2\x81\xa0#\1](https://togithub.com/$dep_owner/$dep_repo/issues/\1)~g"
 }
 
 # This function formats mentions in the generated changelog in such a way that
@@ -213,322 +213,322 @@ formatIssueLinksNoBackreferences() {
 # Similarly to formatIssueLinksNoBackreferences, we add UNICODE WORD JOINER
 # between the '@' and the username
 formatMentions() {
-	sed 's~\B@\([a-zA-Z0-9]\)~@\xe2\x81\xa0\1~g'
+    sed 's~\B@\([a-zA-Z0-9]\)~@\xe2\x81\xa0\1~g'
 }
 
 # A dispatcher for formatIssueLinksPlain and formatIssueLinksNoBackreferences, based on config.
 formatIssueLinks() {
-	if [[ $INPUT_GITHUB_CHANGELOG_NO_BACKREFERENCES == 'true' ]]; then
-		formatIssueLinksNoBackreferences "$@"
-	else
-		formatIssueLinksPlain "$@"
-	fi
+    if [[ $INPUT_GITHUB_CHANGELOG_NO_BACKREFERENCES == 'true' ]]; then
+        formatIssueLinksNoBackreferences "$@"
+    else
+        formatIssueLinksPlain "$@"
+    fi
 }
 
 createPullRequestsOnUpdate() {
-	echo 'Checking for updates'
-	if [[ -z $INPUT_PULL_REQUEST_BASE ]]; then
-		INPUT_PULL_REQUEST_BASE="${GITHUB_REF#refs/heads/}"
-		INPUT_PULL_REQUEST_BASE="${INPUT_PULL_REQUEST_BASE#refs/tags/}"
-		base="$GITHUB_SHA"
-	else
-		# get the SHA of the current base, so that it remains fixed during the run
-		# This can fail if the branch doesn't exist. jq would return nothing in that case.
-		set +euo pipefail
-		base="$(hub api "/repos/$GITHUB_REPOSITORY/branches/$INPUT_PULL_REQUEST_BASE" | jq -jr '.commit.sha // empty')"
-		if [[ -z $base ]]; then
-			error "Could not get the SHA for branch '$INPUT_PULL_REQUEST_BASE'"
-		fi
-		set -euo pipefail
-	fi
+    echo 'Checking for updates'
+    if [[ -z $INPUT_PULL_REQUEST_BASE ]]; then
+        INPUT_PULL_REQUEST_BASE="${GITHUB_REF#refs/heads/}"
+        INPUT_PULL_REQUEST_BASE="${INPUT_PULL_REQUEST_BASE#refs/tags/}"
+        base="$GITHUB_SHA"
+    else
+        # get the SHA of the current base, so that it remains fixed during the run
+        # This can fail if the branch doesn't exist. jq would return nothing in that case.
+        set +euo pipefail
+        base="$(hub api "/repos/$GITHUB_REPOSITORY/branches/$INPUT_PULL_REQUEST_BASE" | jq -jr '.commit.sha // empty')"
+        if [[ -z $base ]]; then
+            error "Could not get the SHA for branch '$INPUT_PULL_REQUEST_BASE'"
+        fi
+        set -euo pipefail
+    fi
 
-	echo "Will use branch '$INPUT_PULL_REQUEST_BASE' (ref: $base) as the base branch"
+    echo "Will use branch '$INPUT_PULL_REQUEST_BASE' (ref: $base) as the base branch"
 
-	merges_filter=''
-	if [[ $INPUT_SHOW_MERGES == 'false' ]]; then
-		# a filter for jq, to be used in the query for getting the changelog
-		merges_filter='| select((.parents | length) < 2)'
-	fi
+    merges_filter=''
+    if [[ $INPUT_SHOW_MERGES == 'false' ]]; then
+        # a filter for jq, to be used in the query for getting the changelog
+        merges_filter='| select((.parents | length) < 2)'
+    fi
 
-	SOURCES_JSON="$INPUT_SOURCES_FILE"
+    SOURCES_JSON="$INPUT_SOURCES_FILE"
 
-	echo "Getting $INPUT_SOURCES_FILE from $GITHUB_REPOSITORY (ref: $base)"
-	# get the content
-	sj=$(mktemp)
-	if ! hub api -XGET -F ref="$base" "/repos/$GITHUB_REPOSITORY/contents/$INPUT_SOURCES_FILE" >>"$sj"; then
-		error 'could not fetch sources.json'
-	fi
-	echo "Getting $INPUT_SOURCES_FILE from $GITHUB_REPOSITORY (ref: $base) - done"
+    echo "Getting $INPUT_SOURCES_FILE from $GITHUB_REPOSITORY (ref: $base)"
+    # get the content
+    sj=$(mktemp)
+    if ! hub api -XGET -F ref="$base" "/repos/$GITHUB_REPOSITORY/contents/$INPUT_SOURCES_FILE" >>"$sj"; then
+        error 'could not fetch sources.json'
+    fi
+    echo "Getting $INPUT_SOURCES_FILE from $GITHUB_REPOSITORY (ref: $base) - done"
 
-	file_sha="$(jq -jr '.sha' <"$sj")"
-	content="$(jq -r '.content' <"$sj" | base64 -d)"
+    file_sha="$(jq -jr '.sha' <"$sj")"
+    content="$(jq -r '.content' <"$sj" | base64 -d)"
 
-	if [[ -n $INPUT_WHITELIST ]]; then
-		# Can't do <<< as it *appends* a newline :(
-		mapfile -td , all_deps < <(printf '%s' "$INPUT_WHITELIST")
-	else
-		mapfile -t all_deps < <(jq -r '.pins | keys[]' <<<"$content")
-	fi
+    if [[ -n $INPUT_WHITELIST ]]; then
+        # Can't do <<< as it *appends* a newline :(
+        mapfile -td , all_deps < <(printf '%s' "$INPUT_WHITELIST")
+    else
+        mapfile -t all_deps < <(jq -r '.pins | keys[]' <<<"$content")
+    fi
 
-	echo 'Going through all dependencies'
-	for dep in "${all_deps[@]}"; do
-		echo "Processing dependency '$dep'"
+    echo 'Going through all dependencies'
+    for dep in "${all_deps[@]}"; do
+        echo "Processing dependency '$dep'"
 
-		if [[ ",$INPUT_BLACKLIST," == *",$dep,"* ]]; then
-			echo "Dependency '$dep' is blacklisted, skipping."
-			continue
-		fi
+        if [[ ",$INPUT_BLACKLIST," == *",$dep,"* ]]; then
+            echo "Dependency '$dep' is blacklisted, skipping."
+            continue
+        fi
 
-		# check type, as only Git is supported
-		dep_type="$(jq -jr --arg dep "$dep" '.pins[$dep].type' <<<"$content")"
+        # check type, as only Git is supported
+        dep_type="$(jq -jr --arg dep "$dep" '.pins[$dep].type' <<<"$content")"
 
-		if [[ $dep_type != "Git" ]]; then
-			warn "Unsupported type '$dep_type' for dependency $dep, skipping"
-			continue
-		fi
+        if [[ $dep_type != "Git" ]]; then
+            warn "Unsupported type '$dep_type' for dependency $dep, skipping"
+            continue
+        fi
 
-		revision="$(jq -jr --arg dep "$dep" '.pins[$dep].revision' <<<"$content")"
+        revision="$(jq -jr --arg dep "$dep" '.pins[$dep].revision' <<<"$content")"
 
-		# check if the branch exists first.
-		# If it exists and we're not updating the PR, then skip.
-		branch_name="$INPUT_BRANCH_PREFIX$dep-$revision"
+        # check if the branch exists first.
+        # If it exists and we're not updating the PR, then skip.
+        branch_name="$INPUT_BRANCH_PREFIX$dep-$revision"
 
-		branch_exists='no'
-		if hub api "/repos/$GITHUB_REPOSITORY/branches/$branch_name" >/dev/null; then
-			if [[ $INPUT_KEEP_UPDATING == 'true' ]]; then
-				branch_exists='yes'
-			else
-				echo "branch '$branch_name' already exists, skipping."
-				continue
-			fi
-		fi
+        branch_exists='no'
+        if hub api "/repos/$GITHUB_REPOSITORY/branches/$branch_name" >/dev/null; then
+            if [[ $INPUT_KEEP_UPDATING == 'true' ]]; then
+                branch_exists='yes'
+            else
+                echo "branch '$branch_name' already exists, skipping."
+                continue
+            fi
+        fi
 
-		echo "Will use branch '$branch_name' for the possible update"
+        echo "Will use branch '$branch_name' for the possible update"
 
-		# check if there is an update by running npins
-		wdir=$(mktemp -d)
-		mkdir -p "$wdir/$(dirname "$SOURCES_JSON")"
-		echo "$content" >"$wdir/$SOURCES_JSON.orig"
-		echo "$content" >"$wdir/$SOURCES_JSON"
-		(
-			cd "$wdir"
+        # check if there is an update by running npins
+        wdir=$(mktemp -d)
+        mkdir -p "$wdir/$(dirname "$SOURCES_JSON")"
+        echo "$content" >"$wdir/$SOURCES_JSON.orig"
+        echo "$content" >"$wdir/$SOURCES_JSON"
+        (
+            cd "$wdir"
 
-			# TODO: make sure npins can update from tag to tag, instead of always using shas
-			if ! npins --lock-file "$wdir/$SOURCES_JSON" update "$dep"; then
-				echo "::warning:: Cannot update '$dep', skipping it"
-				touch .skip
-			fi
-		)
-		# the only way to continue when using subshells
-		if [[ -e "$wdir/.skip" ]]; then
-			rm -rf "$wdir"
-			continue
-		fi
+            # TODO: make sure npins can update from tag to tag, instead of always using shas
+            if ! npins --lock-file "$wdir/$SOURCES_JSON" update "$dep"; then
+                echo "::warning:: Cannot update '$dep', skipping it"
+                touch .skip
+            fi
+        )
+        # the only way to continue when using subshells
+        if [[ -e "$wdir/.skip" ]]; then
+            rm -rf "$wdir"
+            continue
+        fi
 
-		if diff -q "$wdir/$SOURCES_JSON.orig" "$wdir/$SOURCES_JSON" &>/dev/null; then
-			echo "There is no update for '$dep', skipping."
-			continue
-		fi
+        if diff -q "$wdir/$SOURCES_JSON.orig" "$wdir/$SOURCES_JSON" &>/dev/null; then
+            echo "There is no update for '$dep', skipping."
+            continue
+        fi
 
-		new_revision="$(jq -jr --arg dep "$dep" '.pins[$dep].revision' <"$wdir/$SOURCES_JSON")"
+        new_revision="$(jq -jr --arg dep "$dep" '.pins[$dep].revision' <"$wdir/$SOURCES_JSON")"
 
-		if [[ $revision == "$new_revision" ]]; then
-			echo "The new version ($new_revision) is the same as old ($revision) for $dep, skipping"
-			continue
-		fi
+        if [[ $revision == "$new_revision" ]]; then
+            echo "The new version ($new_revision) is the same as old ($revision) for $dep, skipping"
+            continue
+        fi
 
-		dep_owner="$(jq -jr --arg dep "$dep" '.pins[$dep].repository.owner // empty' <<<"$content")"
-		dep_repo="$(jq -jr --arg dep "$dep" '.pins[$dep].repository.repo // empty' <<<"$content")"
+        dep_owner="$(jq -jr --arg dep "$dep" '.pins[$dep].repository.owner // empty' <<<"$content")"
+        dep_repo="$(jq -jr --arg dep "$dep" '.pins[$dep].repository.repo // empty' <<<"$content")"
 
-		# generate the message
-		title=$(mktemp)
-		message=$(mktemp)
+        # generate the message
+        title=$(mktemp)
+        message=$(mktemp)
 
-		printf 'Will generate the Pull Request message for '%s', update from %.8s to %.8s\n' "$dep" "$revision" "$new_revision"
+        printf 'Will generate the Pull Request message for '%s', update from %.8s to %.8s\n' "$dep" "$revision" "$new_revision"
 
-		printf '%snpins %s: update %.8s -> %.8s' "$INPUT_TITLE_PREFIX${INPUT_TITLE_PREFIX:+ }" "$dep" "$revision" "$new_revision" >>"$title"
+        printf '%snpins %s: update %.8s -> %.8s' "$INPUT_TITLE_PREFIX${INPUT_TITLE_PREFIX:+ }" "$dep" "$revision" "$new_revision" >>"$title"
 
-		# print with a new line appended, as yaml swallows those
-		printf '%s%s' "$INPUT_MESSAGE_PREFIX" "${INPUT_MESSAGE_PREFIX:+$'\n'}" >>"$message"
+        # print with a new line appended, as yaml swallows those
+        printf '%s%s' "$INPUT_MESSAGE_PREFIX" "${INPUT_MESSAGE_PREFIX:+$'\n'}" >>"$message"
 
-		is_github=$(jq -r --arg dep "$dep" '
+        is_github=$(jq -r --arg dep "$dep" '
             if .pins[$dep].repository.type == "GitHub" then
               "yes"
             else
               ""
             end
         ' <<<"$content")
-		# get a short changelog if we're on github
-		if [[ -z $is_github ]]; then
-			# pretty sure this is not github
-			echo "Dependency '$dep' isn't hosted on github.com, cannot fetch the changelog" >>"$message"
-		else
-			echo "Dependency '$dep' is hosted on github.com"
+        # get a short changelog if we're on github
+        if [[ -z $is_github ]]; then
+            # pretty sure this is not github
+            echo "Dependency '$dep' isn't hosted on github.com, cannot fetch the changelog" >>"$message"
+        else
+            echo "Dependency '$dep' is hosted on github.com"
 
-			{
-				npins_branch="$(jq -jr --arg dep "$dep" '.pins[$dep].branch // empty' <"$wdir/$SOURCES_JSON")"
-				printf '## Changelog for %s:\n' "$dep"
-				printf 'Branch: %s\n' "$npins_branch"
-				printf 'Commits: [%s/%s@%.8s...%.8s](https://github.com/%s/%s/compare/%s...%s)\n\n' "$dep_owner" "$dep_repo" "$revision" "$new_revision" "$dep_owner" "$dep_repo" "$revision" "$new_revision"
-				{
-					# In order for this to work, one has to use both paginate and per_page
-					hub api --paginate "/repos/$dep_owner/$dep_repo/compare/${revision}...${new_revision}?per_page=100" || true
-				} | jq -r '.commits[] '"$merges_filter"' | "* [`\(.sha[0:8])`](\(.html_url)) \(.commit.message | split("\n") | first)"' |
-					formatIssueLinks "$dep_owner" "$dep_repo" |
-					formatMentions
-			} >>"$message"
-		fi
+            {
+                npins_branch="$(jq -jr --arg dep "$dep" '.pins[$dep].branch // empty' <"$wdir/$SOURCES_JSON")"
+                printf '## Changelog for %s:\n' "$dep"
+                printf 'Branch: %s\n' "$npins_branch"
+                printf 'Commits: [%s/%s@%.8s...%.8s](https://github.com/%s/%s/compare/%s...%s)\n\n' "$dep_owner" "$dep_repo" "$revision" "$new_revision" "$dep_owner" "$dep_repo" "$revision" "$new_revision"
+                {
+                    # In order for this to work, one has to use both paginate and per_page
+                    hub api --paginate "/repos/$dep_owner/$dep_repo/compare/${revision}...${new_revision}?per_page=100" || true
+                } | jq -r '.commits[] '"$merges_filter"' | "* [`\(.sha[0:8])`](\(.html_url)) \(.commit.message | split("\n") | first)"' \
+                    | formatIssueLinks "$dep_owner" "$dep_repo" \
+                    | formatMentions
+            } >>"$message"
+        fi
 
-		message_size=$(wc -c <"$message")
-		truncation_string="* ... _the rest of the list is truncated due to the maximum length of the PR message on GitHub. Please take a look at the commit message._"
-		max_message_size=$((65536 - ${#INPUT_MESSAGE_SUFFIX} - 1 - ${#truncation_string} - 1))
+        message_size=$(wc -c <"$message")
+        truncation_string="* ... _the rest of the list is truncated due to the maximum length of the PR message on GitHub. Please take a look at the commit message._"
+        max_message_size=$((65536 - ${#INPUT_MESSAGE_SUFFIX} - 1 - ${#truncation_string} - 1))
 
-		# This is now split in two different, interleaved actions:
-		# - generating the commit message of any size
-		# - generating the PR description with max size of 64k
-		commit_message=$(mktemp)
-		{
-			cat "$title"
-			printf '\n\n'
-			cat "$message"
-			# print with a new line appended, as yaml swallows those
-			printf '%s%s' "$INPUT_MESSAGE_SUFFIX" "${INPUT_MESSAGE_SUFFIX:+$'\n'}"
-		} >"$commit_message"
+        # This is now split in two different, interleaved actions:
+        # - generating the commit message of any size
+        # - generating the PR description with max size of 64k
+        commit_message=$(mktemp)
+        {
+            cat "$title"
+            printf '\n\n'
+            cat "$message"
+            # print with a new line appended, as yaml swallows those
+            printf '%s%s' "$INPUT_MESSAGE_SUFFIX" "${INPUT_MESSAGE_SUFFIX:+$'\n'}"
+        } >"$commit_message"
 
-		if ((message_size > max_message_size)); then
-			head <"$message" -c $max_message_size | sed '$d' | sponge "$message"
-			printf "%s\n" "$truncation_string" >>"$message"
-		fi
-		# print with a new line appended, as yaml swallows those
-		printf '%s%s' "$INPUT_MESSAGE_SUFFIX" "${INPUT_MESSAGE_SUFFIX:+$'\n'}" >>"$message"
+        if ((message_size > max_message_size)); then
+            head <"$message" -c $max_message_size | sed '$d' | sponge "$message"
+            printf "%s\n" "$truncation_string" >>"$message"
+        fi
+        # print with a new line appended, as yaml swallows those
+        printf '%s%s' "$INPUT_MESSAGE_SUFFIX" "${INPUT_MESSAGE_SUFFIX:+$'\n'}" >>"$message"
 
-		new_content=$(mktemp)
-		base64 "$wdir/$SOURCES_JSON" >>"$new_content"
+        new_content=$(mktemp)
+        base64 "$wdir/$SOURCES_JSON" >>"$new_content"
 
-		# This is the behaviour when the branch doesn't exist
-		if [[ $branch_exists == 'no' ]]; then
-			# create the branch
-			echo "Creating branch '$branch_name' for the update of '$dep'"
-			hub_api_out=$(mktemp)
-			if ! hub api \
-				-F ref="refs/heads/$branch_name" \
-				-F sha="$base" \
-				"/repos/$GITHUB_REPOSITORY/git/refs" >"$hub_api_out"; then
-				error "could not create branch $branch_name for base $base, due to $(cat "$hub_api_out")"
-			fi
+        # This is the behaviour when the branch doesn't exist
+        if [[ $branch_exists == 'no' ]]; then
+            # create the branch
+            echo "Creating branch '$branch_name' for the update of '$dep'"
+            hub_api_out=$(mktemp)
+            if ! hub api \
+                -F ref="refs/heads/$branch_name" \
+                -F sha="$base" \
+                "/repos/$GITHUB_REPOSITORY/git/refs" >"$hub_api_out"; then
+                error "could not create branch $branch_name for base $base, due to $(cat "$hub_api_out")"
+            fi
 
-			# upload the content
-			echo "Uploading the new $INPUT_SOURCES_FILE"
-			# https://docs.github.com/en/free-pro-team@latest/rest/reference/repos#create-or-update-file-contents
-			if ! hub api -XPUT \
-				-F message=@"$commit_message" \
-				-F content=@"$new_content" \
-				-F sha="$file_sha" \
-				-F branch="$branch_name" \
-				"/repos/$GITHUB_REPOSITORY/contents/$INPUT_SOURCES_FILE" >/dev/null; then
-				# try to delete the branch if adding a new content fails
-				hub api -XDELETE "/repos/$GITHUB_REPOSITORY/git/refs/heads/$branch_name" >/dev/null || true
-				error "could not upload content to $branch_name"
-			fi
+            # upload the content
+            echo "Uploading the new $INPUT_SOURCES_FILE"
+            # https://docs.github.com/en/free-pro-team@latest/rest/reference/repos#create-or-update-file-contents
+            if ! hub api -XPUT \
+                -F message=@"$commit_message" \
+                -F content=@"$new_content" \
+                -F sha="$file_sha" \
+                -F branch="$branch_name" \
+                "/repos/$GITHUB_REPOSITORY/contents/$INPUT_SOURCES_FILE" >/dev/null; then
+                # try to delete the branch if adding a new content fails
+                hub api -XDELETE "/repos/$GITHUB_REPOSITORY/git/refs/heads/$branch_name" >/dev/null || true
+                error "could not upload content to $branch_name"
+            fi
 
-			# create a PR, use API to avoid the need for a local checkout
-			echo "Creating a PR for updating '$dep', branch name is '$branch_name'"
-			pr_data=$(mktemp)
-			if ! hub api -XPOST \
-				-F head="$branch_name" \
-				-F base="$INPUT_PULL_REQUEST_BASE" \
-				-F title=@"$title" \
-				-F body=@"$message" \
-				"/repos/$GITHUB_REPOSITORY/pulls" >>"$pr_data"; then
-				# try to delete the branch
-				hub api -XDELETE "/repos/$GITHUB_REPOSITORY/git/refs/heads/$branch_name" >/dev/null || true
-				error 'could not create a PR'
-			fi
+            # create a PR, use API to avoid the need for a local checkout
+            echo "Creating a PR for updating '$dep', branch name is '$branch_name'"
+            pr_data=$(mktemp)
+            if ! hub api -XPOST \
+                -F head="$branch_name" \
+                -F base="$INPUT_PULL_REQUEST_BASE" \
+                -F title=@"$title" \
+                -F body=@"$message" \
+                "/repos/$GITHUB_REPOSITORY/pulls" >>"$pr_data"; then
+                # try to delete the branch
+                hub api -XDELETE "/repos/$GITHUB_REPOSITORY/git/refs/heads/$branch_name" >/dev/null || true
+                error 'could not create a PR'
+            fi
 
-			applyLabels "$pr_data"
+            applyLabels "$pr_data"
 
-			# cleanup
-			rm -f "$pr_data"
-		else
-			# The branch already exists and we need to update it.
-			# The update will actually be the force update, where we create a new tree and commit objects,
-			# and then update the reference and the PR description.
+            # cleanup
+            rm -f "$pr_data"
+        else
+            # The branch already exists and we need to update it.
+            # The update will actually be the force update, where we create a new tree and commit objects,
+            # and then update the reference and the PR description.
 
-			# The steps are:
+            # The steps are:
 
-			# 0. check if the file is the same and skip in that case
-			current_content=$(mktemp)
-			if ! hub api -XGET -F ref="$branch_name" "/repos/$GITHUB_REPOSITORY/contents/$INPUT_SOURCES_FILE" |
-				jq -jr '.content' | base64 -d >"$current_content"; then
-				# We can't just warn and proceed here, as subsequent calls to create a tree might fail
-				# if the tree already exists
-				error 'could not get the old branch content, aborting'
-			fi
+            # 0. check if the file is the same and skip in that case
+            current_content=$(mktemp)
+            if ! hub api -XGET -F ref="$branch_name" "/repos/$GITHUB_REPOSITORY/contents/$INPUT_SOURCES_FILE" \
+                | jq -jr '.content' | base64 -d >"$current_content"; then
+                # We can't just warn and proceed here, as subsequent calls to create a tree might fail
+                # if the tree already exists
+                error 'could not get the old branch content, aborting'
+            fi
 
-			# This is a trick to exit early if the content is the same
-			# shellcheck disable=SC2034,SC2043
-			for irrelevant in "run_once"; do
-				if diff -q "$current_content" "$wdir/$SOURCES_JSON"; then
-					echo 'files are the same, no need to update the PR'
-					break
-				fi
-				# 1. get the base commit sha - done before the if statement
+            # This is a trick to exit early if the content is the same
+            # shellcheck disable=SC2034,SC2043
+            for irrelevant in "run_once"; do
+                if diff -q "$current_content" "$wdir/$SOURCES_JSON"; then
+                    echo 'files are the same, no need to update the PR'
+                    break
+                fi
+                # 1. get the base commit sha - done before the if statement
 
-				# 2. get the base tree from the base commit sha
-				base_tree="$(hub api "/repos/$GITHUB_REPOSITORY/git/commits/$base" | jq -jr '.tree.sha')"
+                # 2. get the base tree from the base commit sha
+                base_tree="$(hub api "/repos/$GITHUB_REPOSITORY/git/commits/$base" | jq -jr '.tree.sha')"
 
-				# 3a. create a new blob with the content
-				blob_data=$(mktemp)
-				if ! hub api -XPOST -f encoding=base64 \
-					-F content=@"$new_content" \
-					"/repos/$GITHUB_REPOSITORY/git/blobs" >"$blob_data"; then
-					# There is nothing better to do
-					error 'could not create a blob for the new content'
-				fi
+                # 3a. create a new blob with the content
+                blob_data=$(mktemp)
+                if ! hub api -XPOST -f encoding=base64 \
+                    -F content=@"$new_content" \
+                    "/repos/$GITHUB_REPOSITORY/git/blobs" >"$blob_data"; then
+                    # There is nothing better to do
+                    error 'could not create a blob for the new content'
+                fi
 
-				# 3b. create a new tree with the file update
-				tree_data=$(mktemp)
-				# Per: https://docs.github.com/en/free-pro-team@latest/rest/reference/git#create-a-tree
-				# one must not provide both sha and content
-				if ! jq --arg path "$INPUT_SOURCES_FILE" --arg base_tree "$base_tree" \
-					'{base_tree: $base_tree, tree: [{path: $path, mode: "100644", type: "blob", content: null, sha}]}' \
-					<"$blob_data" |
-					hub api -XPOST --input - \
-						"/repos/$GITHUB_REPOSITORY/git/trees" >>"$tree_data"; then
-					# There is nothing better to do
-					error 'could not create a new tree with updated content'
-				fi
+                # 3b. create a new tree with the file update
+                tree_data=$(mktemp)
+                # Per: https://docs.github.com/en/free-pro-team@latest/rest/reference/git#create-a-tree
+                # one must not provide both sha and content
+                if ! jq --arg path "$INPUT_SOURCES_FILE" --arg base_tree "$base_tree" \
+                    '{base_tree: $base_tree, tree: [{path: $path, mode: "100644", type: "blob", content: null, sha}]}' \
+                    <"$blob_data" \
+                    | hub api -XPOST --input - \
+                        "/repos/$GITHUB_REPOSITORY/git/trees" >>"$tree_data"; then
+                    # There is nothing better to do
+                    error 'could not create a new tree with updated content'
+                fi
 
-				# 4. create a new commit
-				commit_data=$(mktemp)
-				if ! jq -ncj \
-					--arg parent "$base" \
-					--arg tree "$(jq -jr '.sha' <"$tree_data")" \
-					--rawfile message "$commit_message" \
-					'{message: $message, tree: $tree, parents: [$parent]}' |
-					hub api -XPOST \
-						--input - \
-						"/repos/$GITHUB_REPOSITORY/git/commits" \
-						>"$commit_data"; then
-					# There is nothing better to do
-					error 'could not create a new commit with PR updates'
-				fi
+                # 4. create a new commit
+                commit_data=$(mktemp)
+                if ! jq -ncj \
+                    --arg parent "$base" \
+                    --arg tree "$(jq -jr '.sha' <"$tree_data")" \
+                    --rawfile message "$commit_message" \
+                    '{message: $message, tree: $tree, parents: [$parent]}' \
+                    | hub api -XPOST \
+                        --input - \
+                        "/repos/$GITHUB_REPOSITORY/git/commits" \
+                        >"$commit_data"; then
+                    # There is nothing better to do
+                    error 'could not create a new commit with PR updates'
+                fi
 
-				# 5. update reference to point to the new commit
-				old_branch_sha="$(hub api "/repos/$GITHUB_REPOSITORY/git/ref/heads/$branch_name" | jq -jr '.object.sha')"
-				if ! hub api -XPATCH \
-					-F force=true \
-					-F sha="$(jq -jr '.sha' <"$commit_data")" \
-					"/repos/$GITHUB_REPOSITORY/git/refs/heads/$branch_name" >/dev/null; then
-					# There is nothing better to do
-					error 'could not update the branch to point to the new commit'
-				fi
+                # 5. update reference to point to the new commit
+                old_branch_sha="$(hub api "/repos/$GITHUB_REPOSITORY/git/ref/heads/$branch_name" | jq -jr '.object.sha')"
+                if ! hub api -XPATCH \
+                    -F force=true \
+                    -F sha="$(jq -jr '.sha' <"$commit_data")" \
+                    "/repos/$GITHUB_REPOSITORY/git/refs/heads/$branch_name" >/dev/null; then
+                    # There is nothing better to do
+                    error 'could not update the branch to point to the new commit'
+                fi
 
-				# 6. find the PR for the branch
-				# The best way to do it is via GraphQL
-				pr_number_data=$(mktemp)
-				# shellcheck disable=SC2016
-				if ! hub api graphql -f owner="${GITHUB_REPOSITORY%/*}" -f name="${GITHUB_REPOSITORY#*/}" -f branch="$branch_name" -f query='
+                # 6. find the PR for the branch
+                # The best way to do it is via GraphQL
+                pr_number_data=$(mktemp)
+                # shellcheck disable=SC2016
+                if ! hub api graphql -f owner="${GITHUB_REPOSITORY%/*}" -f name="${GITHUB_REPOSITORY#*/}" -f branch="$branch_name" -f query='
                     query PrNumber($owner: String!, $name: String!, $branch: String!) {
                       repository(owner: $owner, name: $name) {
                         pullRequests(last: 1, states: OPEN, headRefName: $branch) {
@@ -538,60 +538,60 @@ createPullRequestsOnUpdate() {
                         }
                       }
                     }' >"$pr_number_data"; then
-					# There is nothing better to do
-					error 'could not get the PR number for this branch'
-				fi
+                    # There is nothing better to do
+                    error 'could not get the PR number for this branch'
+                fi
 
-				pr_number="$(jq '.data.repository.pullRequests.nodes[].number' <"$pr_number_data")"
+                pr_number="$(jq '.data.repository.pullRequests.nodes[].number' <"$pr_number_data")"
 
-				# 7. update PR description and title
-				if ! hub api -XPATCH \
-					-F body=@"$message" \
-					-F title=@"$title" \
-					"/repos/$GITHUB_REPOSITORY/pulls/$pr_number" >/dev/null; then
-					# It would be good to roll back here to the previous commit
-					warn 'could not update the PR description, reverting to the previous commit'
-					if ! hub api -XPATCH \
-						-F force=true \
-						-F sha="$old_branch_sha" \
-						"/repos/$GITHUB_REPOSITORY/git/refs/heads/$branch_name" >/dev/null; then
-						# There is nothing better to do
-						error 'could not revert the branch to point to the old commit'
-					fi
-				fi
+                # 7. update PR description and title
+                if ! hub api -XPATCH \
+                    -F body=@"$message" \
+                    -F title=@"$title" \
+                    "/repos/$GITHUB_REPOSITORY/pulls/$pr_number" >/dev/null; then
+                    # It would be good to roll back here to the previous commit
+                    warn 'could not update the PR description, reverting to the previous commit'
+                    if ! hub api -XPATCH \
+                        -F force=true \
+                        -F sha="$old_branch_sha" \
+                        "/repos/$GITHUB_REPOSITORY/git/refs/heads/$branch_name" >/dev/null; then
+                        # There is nothing better to do
+                        error 'could not revert the branch to point to the old commit'
+                    fi
+                fi
 
-				# cleanup
-				rm -f "$tree_data"
-				rm -f "$commit_data"
-				rm -f "$pr_number_data"
-			done
+                # cleanup
+                rm -f "$tree_data"
+                rm -f "$commit_data"
+                rm -f "$pr_number_data"
+            done
 
-			# cleanup
-			rm -f "$current_content"
-		fi
+            # cleanup
+            rm -f "$current_content"
+        fi
 
-		# cleanup
-		rm -rf "$wdir"
-		rm -f "$new_content"
-		rm -f "$commit_message"
-		rm -f "$message"
-		rm -f "$title"
+        # cleanup
+        rm -rf "$wdir"
+        rm -f "$new_content"
+        rm -f "$commit_message"
+        rm -f "$message"
+        rm -f "$title"
 
-		echo "Processing dependency '$dep' - done"
-	done
-	rm -f "$sj"
-	echo 'Checking for updates - done'
+        echo "Processing dependency '$dep' - done"
+    done
+    rm -f "$sj"
+    echo 'Checking for updates - done'
 }
 
 if [[ ${BASH_SOURCE[0]} == "${0}" ]]; then
-	if [[ $INPUT_DEBUG_OUTPUT == 'true' ]]; then
-		set -x
-		export HUB_VERBOSE=true
-	fi
+    if [[ $INPUT_DEBUG_OUTPUT == 'true' ]]; then
+        set -x
+        export HUB_VERBOSE=true
+    fi
 
-	setupPrerequisites
-	checkCredentials
-	setupNetrc
-	sanitizeInputs
-	createPullRequestsOnUpdate
+    setupPrerequisites
+    checkCredentials
+    setupNetrc
+    sanitizeInputs
+    createPullRequestsOnUpdate
 fi
