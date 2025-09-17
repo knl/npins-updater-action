@@ -9,10 +9,10 @@ inputs:
     description: 'The name of the branch to issue the pull requests against. Defaults to an empty string, which means to take the default branch for the repository.'
     required: false
     default: ''
-  npins_directory:
-    description: 'The path in the repo to the sources.json file. This value will be passed to npins via `--directory` option. Defaults to `npins/`.'
+  sources_file:
+    description: 'The path in the repo to the sources.json file. This value will be passed  to niv via `--sources-file` option. Defaults to `npins/sources.json`.'
     required: false
-    default: 'npins'
+    default: 'npins/sources.json'
   npins_version:
     description: 'The npins version to be used. Defaults to `*from-nixpkgs*`, meaning that it uses the version from nixpkgs the action is configured to use. You could instead use something like `master`, to denote the master branch of npins. You may want to fix a particular version and avoid future breaks to your workflow.'
     required: false

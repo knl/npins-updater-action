@@ -250,7 +250,7 @@ createPullRequestsOnUpdate() {
 		merges_filter='| select((.parents | length) < 2)'
 	fi
 
-	SOURCES_JSON='nix/sources.json'
+	SOURCES_JSON="$INPUT_SOURCES_FILE"
 
 	echo "Getting $INPUT_SOURCES_FILE from $GITHUB_REPOSITORY (ref: $base)"
 	# get the content
@@ -305,14 +305,14 @@ createPullRequestsOnUpdate() {
 
 		# check if there is an update by running npins
 		wdir=$(mktemp -d)
-		mkdir -p "$wdir/nix"
+		mkdir -p "$wdir/$(dirname "$SOURCES_JSON")"
 		echo "$content" >"$wdir/$SOURCES_JSON.orig"
 		echo "$content" >"$wdir/$SOURCES_JSON"
 		(
 			cd "$wdir"
 
 			# TODO: make sure npins can update from tag to tag, instead of always using shas
-			if ! npins update "$dep"; then
+			if ! npins --lock-file "$wdir/$SOURCES_JSON" update "$dep"; then
 				echo "::warning:: Cannot update '$dep', skipping it"
 				touch .skip
 			fi
