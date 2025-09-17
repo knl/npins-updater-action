@@ -105,7 +105,7 @@ setupPrerequisites() {
 		# https://github.com/actions/virtual-environments/blob/master/images/linux/Ubuntu1804-README.md
 		# NOTE: We add 'cache.nixos.org' as a substituter because npins uses it as an upstream cache:
 		# https://blog.cachix.org/posts/2020-07-28-upstream-caches-avoiding-pushing-paths-in-cache-nixos-org/
-		nix-env -iA npins -f "https://github.com/andir/npins/tarball/$INPUT_NPINS_VERSION" \
+		nix-env -i -f "https://github.com/andir/npins/tarball/$INPUT_NPINS_VERSION" \
 			--substituters 'https://cache.nixos.org' \
 			--trusted-public-keys 'cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY='
 	fi
