@@ -398,7 +398,7 @@ createPullRequestsOnUpdate() {
             new_revision="$(jq -jr --arg dep "$dep" '.pins[$dep].revision' <"$wdir/$SOURCES_JSON")"
         else
             url="$(jq -jr --arg dep "$dep" '.pins[$dep].url' <"$wdir/$SOURCES_JSON")"
-            revision="$(extractChannelRevision "$url")"
+            new_revision="$(extractChannelRevision "$url")"
         fi
 
         if [[ $revision == "$new_revision" ]]; then
