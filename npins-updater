@@ -225,6 +225,65 @@ formatIssueLinks() {
     fi
 }
 
+extractChannelRevision() {
+    local url="$1"
+    local dirname
+    dirname="$(basename "$(dirname "$url")")"
+    local rev
+    rev="${dirname##*.}"
+    if [[ $rev == "$dirname" ]]; then
+        # No dot in dirname — try to pull a hash from the filename
+        local fname
+        fname="$(basename "$url")"
+        if [[ $fname =~ \.([0-9a-f]{7,40})\.tar ]]; then
+            rev="${BASH_REMATCH[1]}"
+        else
+            rev="" # couldn't find a revision
+        fi
+    fi
+    echo "$rev"
+}
+
+extractChannelRepo() {
+    local url="$1"
+
+    # repo is the first path segment after the domain
+    # e.g. .../nixpkgs/... or .../nixos/... or .../nix/..., .../patchelf/...
+    local repo
+    repo="$(echo "$url" | awk -F/ 'NF>=4 {print $4}')"
+    echo "$repo"
+}
+
+extractChannelBranch() {
+    local url="$1"
+    # directory that contains the tarball, e.g. nixpkgs-25.11pre862603.08b8f92ac635
+    local dirname
+    dirname="$(basename "$(dirname "$url")")"
+
+    # branch heuristic:
+    # - unstable => master
+    # - release-YY.MM for stable series (nixpkgs & nixos)
+    # Anything else defaults to master.
+    local branch="master"
+    if [[ -n $repo && $dirname == ${repo}-* ]]; then
+        local suffix="${dirname#"${repo}"-}"
+
+        if [[ $suffix =~ ^unstable(\.|$) ]]; then
+            branch="master"
+        elif [[ $suffix =~ ^([0-9]{2}\.[0-9]{2}) ]]; then
+            # stable series like 25.05, 24.11, etc.
+            branch="release-${BASH_REMATCH[1]}"
+        elif [[ $suffix =~ ^pre ]]; then
+            branch="master"
+        else
+            # Keep default "master"
+            :
+        fi
+    fi
+
+    echo "$branch"
+}
+
 createPullRequestsOnUpdate() {
     echo 'Checking for updates'
     if [[ -z $INPUT_PULL_REQUEST_BASE ]]; then
@@ -282,12 +341,17 @@ createPullRequestsOnUpdate() {
         # check type, as only Git is supported
         dep_type="$(jq -jr --arg dep "$dep" '.pins[$dep].type' <<<"$content")"
 
-        if [[ $dep_type != "Git" ]]; then
+        if [[ $dep_type != "Git" && $dep_type != "Channel" ]]; then
             warn "Unsupported type '$dep_type' for dependency $dep, skipping"
             continue
         fi
 
-        revision="$(jq -jr --arg dep "$dep" '.pins[$dep].revision' <<<"$content")"
+        if [[ $dep_type == "Git" ]]; then
+            revision="$(jq -jr --arg dep "$dep" '.pins[$dep].revision' <<<"$content")"
+        else
+            url="$(jq -jr --arg dep "$dep" '.pins[$dep].url' <<<"$content")"
+            revision="$(extractChannelRevision "$url")"
+        fi
 
         # check if the branch exists first.
         # If it exists and we're not updating the PR, then skip.
@@ -330,15 +394,35 @@ createPullRequestsOnUpdate() {
             continue
         fi
 
-        new_revision="$(jq -jr --arg dep "$dep" '.pins[$dep].revision' <"$wdir/$SOURCES_JSON")"
+        if [[ $dep_type == "Git" ]]; then
+            new_revision="$(jq -jr --arg dep "$dep" '.pins[$dep].revision' <"$wdir/$SOURCES_JSON")"
+        else
+            url="$(jq -jr --arg dep "$dep" '.pins[$dep].url' <"$wdir/$SOURCES_JSON")"
+            revision="$(extractChannelRevision "$url")"
+        fi
 
         if [[ $revision == "$new_revision" ]]; then
             echo "The new version ($new_revision) is the same as old ($revision) for $dep, skipping"
             continue
         fi
 
-        dep_owner="$(jq -jr --arg dep "$dep" '.pins[$dep].repository.owner // empty' <<<"$content")"
-        dep_repo="$(jq -jr --arg dep "$dep" '.pins[$dep].repository.repo // empty' <<<"$content")"
+        if [[ $dep_type == "Git" ]]; then
+            dep_owner="$(jq -jr --arg dep "$dep" '.pins[$dep].repository.owner // empty' <<<"$content")"
+            dep_repo="$(jq -jr --arg dep "$dep" '.pins[$dep].repository.repo // empty' <<<"$content")"
+            is_github=$(jq -r --arg dep "$dep" '
+                if .pins[$dep].repository.type == "GitHub" then
+                    "yes"
+                else
+                    ""
+                end
+            ' <<<"$content")
+        else
+            url="$(jq -jr --arg dep "$dep" '.pins[$dep].url' <<<"$content")"
+            # FIXME: find a more robust way
+            dep_owner="nixos"
+            dep_repo="$(extractChannelRepo "$url")"
+            is_github="yes"
+        fi
 
         # generate the message
         title=$(mktemp)
@@ -351,13 +435,6 @@ createPullRequestsOnUpdate() {
         # print with a new line appended, as yaml swallows those
         printf '%s%s' "$INPUT_MESSAGE_PREFIX" "${INPUT_MESSAGE_PREFIX:+$'\n'}" >>"$message"
 
-        is_github=$(jq -r --arg dep "$dep" '
-            if .pins[$dep].repository.type == "GitHub" then
-              "yes"
-            else
-              ""
-            end
-        ' <<<"$content")
         # get a short changelog if we're on github
         if [[ -z $is_github ]]; then
             # pretty sure this is not github
@@ -366,7 +443,13 @@ createPullRequestsOnUpdate() {
             echo "Dependency '$dep' is hosted on github.com"
 
             {
-                npins_branch="$(jq -jr --arg dep "$dep" '.pins[$dep].branch // empty' <"$wdir/$SOURCES_JSON")"
+                if [[ $dep_type == "Git" ]]; then
+                    npins_branch="$(jq -jr --arg dep "$dep" '.pins[$dep].branch // empty' <"$wdir/$SOURCES_JSON")"
+                else
+                    url="$(jq -jr --arg dep "$dep" '.pins[$dep].url' <<<"$wdir/$SOURCES_JSON")"
+                    npins_branch="$(extractChannelBranch "$url")"
+                fi
+
                 printf '## Changelog for %s:\n' "$dep"
                 printf 'Branch: %s\n' "$npins_branch"
                 printf 'Commits: [%s/%s@%.8s...%.8s](https://github.com/%s/%s/compare/%s...%s)\n\n' "$dep_owner" "$dep_repo" "$revision" "$new_revision" "$dep_owner" "$dep_repo" "$revision" "$new_revision"
