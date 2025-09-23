@@ -260,6 +260,9 @@ extractChannelBranch() {
     local dirname
     dirname="$(basename "$(dirname "$url")")"
 
+    local repo
+    repo="$(extractChannelRepo "$url")"
+
     # branch heuristic:
     # - unstable => master
     # - release-YY.MM for stable series (nixpkgs & nixos)
