@@ -446,7 +446,7 @@ createPullRequestsOnUpdate() {
                 if [[ $dep_type == "Git" ]]; then
                     npins_branch="$(jq -jr --arg dep "$dep" '.pins[$dep].branch // empty' <"$wdir/$SOURCES_JSON")"
                 else
-                    url="$(jq -jr --arg dep "$dep" '.pins[$dep].url' <<<"$wdir/$SOURCES_JSON")"
+                    url="$(jq -jr --arg dep "$dep" '.pins[$dep].url' <"$wdir/$SOURCES_JSON")"
                     npins_branch="$(extractChannelBranch "$url")"
                 fi
 
