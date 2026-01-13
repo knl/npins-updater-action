@@ -115,8 +115,17 @@ setupPrerequisites() {
     # Install if hub dependency is missing on self hosted runner
     [[ $(type -P "hub") ]] || PACKAGES+=(hub)
 
+    # If it looks like a version number (e.g. 25.11), prepend nixos-
+    if [[ $INPUT_NIXPKGS_VERSION =~ ^[0-9]+\.[0-9]+$ ]]; then
+        NIXPKGS_REF="refs/heads/nixos-$INPUT_NIXPKGS_VERSION"
+    elif [[ $INPUT_NIXPKGS_VERSION =~ ^[0-9a-f]{40}$ ]]; then
+        NIXPKGS_REF="$INPUT_NIXPKGS_VERSION"
+    else
+        NIXPKGS_REF="refs/heads/$INPUT_NIXPKGS_VERSION"
+    fi
+
     # shellcheck disable=SC2016
-    PATH="${PATH}:$(nix-shell -I "nixpkgs=https://github.com/NixOS/nixpkgs/archive/refs/heads/nixos-25.05.tar.gz" -p "${PACKAGES[@]}" --command 'echo $PATH')"
+    PATH="${PATH}:$(nix-shell -I "nixpkgs=https://github.com/NixOS/nixpkgs/archive/${NIXPKGS_REF}.tar.gz" -p "${PACKAGES[@]}" --command 'echo $PATH')"
 
     echo 'Installing dependencies - done'
 }

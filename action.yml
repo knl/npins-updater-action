@@ -17,6 +17,10 @@ inputs:
     description: 'The npins version to be used. Defaults to `*from-nixpkgs*`, meaning that it uses the version from nixpkgs the action is configured to use. You could instead use something like `master`, to denote the master branch of npins. You may want to fix a particular version and avoid future breaks to your workflow.'
     required: false
     default: '*from-nixpkgs*'
+  nixpkgs_version:
+    description: 'The nixpkgs version to use for utilities, and for npins if `*from-nixpkgs*` option is used in `npins_version`. You can use value `master` (default) to always track the main branch of nixpkgs, or a version like `25.11`.'
+    required: false
+    default: 'master'
   keep_updating:
     description: 'If PR already exists, keep it updated with new changes. The branch will be force updated, as this process keeps a single commit on a branch. Defaults to false to maintain the old behaviour.'
     required: false
