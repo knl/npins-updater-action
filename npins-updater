@@ -195,7 +195,7 @@ applyLabels() {
 # This function will turn any #123 into owner/repo#123.
 # This is needed, since the changelogs from different repositories will all have issue links as #123,
 # which, when printed as a PR description will create a link to the _current_ repository (one with
-# nix/sources.json), not one where the changelog originated from. The owner/repo#123 format will
+# npins/sources.json), not one where the changelog originated from. The owner/repo#123 format will
 # ensure proper linking.
 formatIssueLinksPlain() {
     dep_owner="$1"
